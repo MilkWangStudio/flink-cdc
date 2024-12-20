@@ -186,7 +186,7 @@ public class MySqlTypeUtils {
                         ? DataTypes.DECIMAL(column.length(), column.scale().orElse(0))
                         : DataTypes.STRING();
             case TIME:
-                return column.length() >= 0 ? DataTypes.TIME(column.length()) : DataTypes.TIME();
+                return DataTypes.VARCHAR(16);
             case DATE:
                 return DataTypes.DATE();
             case DATETIME:

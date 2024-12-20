@@ -29,6 +29,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -52,9 +53,9 @@ public class MySqlDefaultValueConverter implements DefaultValueConverter {
     private static final Pattern EPOCH_EQUIVALENT_DATE =
             Pattern.compile("\\d{4}-\\d{2}-00|\\d{4}-00-\\d{2}|0000-\\d{2}-\\d{2}");
 
-    private static final String EPOCH_TIMESTAMP = "1970-01-01 00:00:00";
+    private static final String EPOCH_TIMESTAMP = "2000-01-01 00:00:00";
 
-    private static final String EPOCH_DATE = "1970-01-01";
+    private static final String EPOCH_DATE = "2000-01-01";
 
     private static final Pattern TIMESTAMP_PATTERN =
             Pattern.compile("([0-9]*-[0-9]*-[0-9]*) ([0-9]*:[0-9]*:[0-9]*(\\.([0-9]*))?)");
@@ -206,10 +207,12 @@ public class MySqlDefaultValueConverter implements DefaultValueConverter {
      * @return the converted value;
      */
     private Object convertToLocalDate(Column column, String value) {
+        LOGGER.info("convertToLocalDate, column={}, value={}", column.name(), value);
         final boolean zero =
                 EPOCH_EQUIVALENT_DATE.matcher(value).matches()
                         || EPOCH_EQUIVALENT_TIMESTAMP.matcher(value).matches()
-                        || "0".equals(value);
+                        || "0".equals(value)
+                        || "0000-00-00 00:00:00".equals(value);
 
         if (zero && column.isOptional()) {
             return null;
@@ -244,8 +247,11 @@ public class MySqlDefaultValueConverter implements DefaultValueConverter {
      * @return the converted value;
      */
     private Object convertToLocalDateTime(Column column, String value) {
+        LOGGER.info("convertToLocalDateTime, column={}, value={}", column.name(), value);
         final boolean matches =
-                EPOCH_EQUIVALENT_TIMESTAMP.matcher(value).matches() || "0".equals(value);
+                EPOCH_EQUIVALENT_TIMESTAMP.matcher(value).matches()
+                        || "0".equals(value)
+                        || "0000-00-00 00:00:00".equals(value);
         if (matches) {
             if (column.isOptional()) {
                 return null;
@@ -280,16 +286,24 @@ public class MySqlDefaultValueConverter implements DefaultValueConverter {
      * @return the converted value;
      */
     private Object convertToTimestamp(Column column, String value) {
+        LOGGER.info("convertToTimestamp, column={}, value={}", column.name(), value);
         final boolean matches =
                 EPOCH_EQUIVALENT_TIMESTAMP.matcher(value).matches()
                         || "0".equals(value)
-                        || EPOCH_TIMESTAMP.equals(value);
+                        || EPOCH_TIMESTAMP.equals(value)
+                        || "0000-00-00 00:00:00".equals(value);
         if (matches) {
             if (column.isOptional()) {
                 return null;
             }
 
-            return Timestamp.from(Instant.EPOCH);
+            // 计算从1970年1月1日到2000年1月1日的总秒数
+            long seconds =
+                    Instant.EPOCH.until(Instant.parse("2000-01-01T00:00:00Z"), ChronoUnit.SECONDS);
+            // 将秒数转换回Instant对象
+            Instant instant = Instant.ofEpochSecond(seconds);
+            // 从Instant对象创建Timestamp对象
+            return Timestamp.from(instant);
         }
         value = cleanTimestamp(value);
         return Timestamp.valueOf(value).toInstant().atZone(ZoneId.systemDefault());

@@ -71,7 +71,7 @@ public class MysqlDebeziumTimeConverter
     protected static final String TIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
     protected static final String DATETIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
     protected ZoneId zoneId;
-    protected static final String DEFAULT_DATE_FORMAT_PATTERN = "1970-01-01 00:00:00";
+    protected static final String DEFAULT_DATE_FORMAT_PATTERN = "2000-01-01 00:00:00";
     protected DateTimeFormatter dateFormatter;
     protected DateTimeFormatter timeFormatter;
     protected DateTimeFormatter datetimeFormatter;
