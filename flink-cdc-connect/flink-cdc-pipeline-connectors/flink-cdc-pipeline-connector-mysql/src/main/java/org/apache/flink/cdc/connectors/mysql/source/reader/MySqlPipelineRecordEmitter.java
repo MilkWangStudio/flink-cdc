@@ -194,7 +194,6 @@ public class MySqlPipelineRecordEmitter extends MySqlRecordEmitter<Event> {
 
     private Schema parseDDL(String ddlStatement, TableId tableId) {
         Table table = parseDdl(ddlStatement, tableId);
-
         List<Column> columns = table.columns();
         Schema.Builder tableBuilder = Schema.newBuilder();
         for (int i = 0; i < columns.size(); i++) {
@@ -205,11 +204,14 @@ public class MySqlPipelineRecordEmitter extends MySqlRecordEmitter<Event> {
             if (!column.isOptional()) {
                 dataType = dataType.notNull();
             }
-            tableBuilder.physicalColumn(
-                    colName,
-                    dataType,
-                    column.comment(),
-                    column.defaultValueExpression().orElse(null));
+            String defaultValue = column.defaultValueExpression().orElse(null);
+            if ("0000-00-00 00:00:00".equals(defaultValue)) {
+                defaultValue = "2000-01-01 00:00:00";
+            }
+            if ("0000-00-00".equals(defaultValue)) {
+                defaultValue = "2000-01-01";
+            }
+            tableBuilder.physicalColumn(colName, dataType, column.comment(), defaultValue);
         }
 
         List<String> primaryKey = table.primaryKeyColumnNames();

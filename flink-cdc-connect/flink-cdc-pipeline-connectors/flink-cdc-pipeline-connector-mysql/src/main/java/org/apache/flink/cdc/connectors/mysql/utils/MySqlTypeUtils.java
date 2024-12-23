@@ -23,9 +23,12 @@ import org.apache.flink.cdc.common.types.DataType;
 import org.apache.flink.cdc.common.types.DataTypes;
 
 import io.debezium.relational.Column;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Utilities for converting from MySQL types to {@link DataType}s. */
 public class MySqlTypeUtils {
+    private static final Logger LOG = LoggerFactory.getLogger(MySqlTypeUtils.class);
 
     // ------ MySQL Type ------
     // https://dev.mysql.com/doc/refman/8.0/en/data-types.html
@@ -124,6 +127,11 @@ public class MySqlTypeUtils {
      * be true.
      */
     private static DataType convertFromColumn(Column column) {
+        LOG.info(
+                "convertFromColumn, name={}, type={},defaultValue={}",
+                column.name(),
+                column.typeName(),
+                column.defaultValueExpression());
         String typeName = column.typeName();
         switch (typeName) {
             case BIT:
@@ -194,7 +202,7 @@ public class MySqlTypeUtils {
                         ? DataTypes.DECIMAL(column.length(), column.scale().orElse(0))
                         : DataTypes.STRING();
             case TIME:
-                return column.length() >= 0 ? DataTypes.TIME(column.length()) : DataTypes.TIME();
+                return DataTypes.VARCHAR(16);
             case DATE:
                 return DataTypes.DATE();
             case DATETIME:

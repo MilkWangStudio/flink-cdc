@@ -143,42 +143,80 @@ public class MysqlDebeziumTimeConverter
     }
 
     private Object convertDateObject(RelationalColumn field, Object value, String columnType) {
+        log.info(
+                "convertDateObject, filed={}, value={}, columnType={}",
+                field.name(),
+                value,
+                columnType);
         if (value == null) {
             return convertDateDefaultValue(field);
         }
+        String time = null;
         switch (columnType.toUpperCase(Locale.ROOT)) {
             case "DATE":
-                if (value instanceof Integer) {
-                    return this.convertToDate(columnType, LocalDate.ofEpochDay((Integer) value));
+                {
+                    if (value instanceof Integer) {
+                        time =
+                                this.convertToDate(
+                                        columnType, LocalDate.ofEpochDay((Integer) value));
+                    } else {
+                        time = this.convertToDate(columnType, value);
+                    }
+                    break;
                 }
-                return this.convertToDate(columnType, value);
+
             case "TIME":
-                if (value instanceof Long) {
-                    long l = Math.multiplyExact((Long) value, TimeUnit.MICROSECONDS.toNanos(1));
-                    return this.convertToTime(columnType, LocalTime.ofNanoOfDay(l));
+                {
+                    if (value instanceof Long) {
+                        long l = Math.multiplyExact((Long) value, TimeUnit.MICROSECONDS.toNanos(1));
+                        time = this.convertToTime(columnType, LocalTime.ofNanoOfDay(l));
+                    } else {
+                        time = this.convertToTime(columnType, value);
+                    }
+                    break;
                 }
-                return this.convertToTime(columnType, value);
             case "DATETIME":
-                if (value instanceof Long) {
-                    if (getTimePrecision(field) <= 3) {
-                        return this.convertToTimestamp(
-                                columnType, Conversions.toInstantFromMillis((Long) value));
+                {
+                    if (value instanceof Long) {
+                        if (getTimePrecision(field) <= 3) {
+                            time =
+                                    this.convertToTimestamp(
+                                            columnType,
+                                            Conversions.toInstantFromMillis((Long) value));
+                        } else if (getTimePrecision(field) <= 6) {
+                            time =
+                                    this.convertToTimestamp(
+                                            columnType,
+                                            Conversions.toInstantFromMicros((Long) value));
+                        }
+                    } else {
+                        time = this.convertToTimestamp(columnType, value);
                     }
-                    if (getTimePrecision(field) <= 6) {
-                        return this.convertToTimestamp(
-                                columnType, Conversions.toInstantFromMicros((Long) value));
-                    }
+                    break;
                 }
-                return this.convertToTimestamp(columnType, value);
             case "TIMESTAMP":
-                return this.convertToTimestampWithTimezone(columnType, value);
+                {
+                    time = this.convertToTimestampWithTimezone(columnType, value);
+                    break;
+                }
+
             default:
                 throw new IllegalArgumentException(
                         "Unknown field type  " + columnType.toUpperCase(Locale.ROOT));
         }
+        if ("0".equals(time)
+                || "1970-01-01".equals(time)
+                || "0000-00-00".equals(time)
+                || "1970-01-01 00:00:00".equals(time)
+                || "1970-01-01 08:00:00".equals(time)
+                || "0000-00-00 00:00:00".equals(time)
+                || "0000-00-00 08:00:00".equals(time)) {
+            return DEFAULT_DATE_FORMAT_PATTERN;
+        }
+        return time;
     }
 
-    private Object convertToTimestampWithTimezone(String columnType, Object timestamp) {
+    private String convertToTimestampWithTimezone(String columnType, Object timestamp) {
         // In snapshot mode, debezium produces a java.sql.Timestamp object for the TIMESTAMPTZ type.
         // Conceptually, a timestamp with timezone is an Instant. But t.toInstant() actually
         // mangles the value for ancient dates, because leap years weren't applied consistently in
@@ -218,7 +256,7 @@ public class MysqlDebeziumTimeConverter
         }
     }
 
-    private Object convertToTimestamp(String columnType, Object timestamp) {
+    private String convertToTimestamp(String columnType, Object timestamp) {
         if (timestamp instanceof Timestamp) {
             // Snapshot mode
             LocalDateTime localDateTime = ((Timestamp) timestamp).toLocalDateTime();
@@ -247,7 +285,7 @@ public class MysqlDebeziumTimeConverter
         return ConvertTimeBceUtil.resolveEra(localDate, localDateTime.format(datetimeFormatter));
     }
 
-    private Object convertToTime(String columnType, Object time) {
+    private String convertToTime(String columnType, Object time) {
         if (time instanceof Time) {
             return formatTime(((Time) time).toLocalTime());
         } else if (time instanceof LocalTime) {
