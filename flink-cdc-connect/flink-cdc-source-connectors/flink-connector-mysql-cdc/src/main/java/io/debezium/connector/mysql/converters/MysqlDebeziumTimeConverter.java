@@ -71,7 +71,7 @@ public class MysqlDebeziumTimeConverter
     protected static final String TIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
     protected static final String DATETIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
     protected ZoneId zoneId;
-    protected static final String DEFAULT_DATE_FORMAT_PATTERN = "1970-01-01 00:00:00";
+    protected static final String DEFAULT_DATE_FORMAT_PATTERN = "2000-01-01 00:00:00";
     protected DateTimeFormatter dateFormatter;
     protected DateTimeFormatter timeFormatter;
     protected DateTimeFormatter datetimeFormatter;
@@ -118,7 +118,16 @@ public class MysqlDebeziumTimeConverter
                 SchemaBuilder.string().name(schemaName).optional(),
                 value -> {
                     try {
-                        return convertDateObject(field, value, columnType);
+                        Object ret = convertDateObject(field, value, columnType);
+                        log.info(
+                                "convertDateObject, name={}, defaultValue={}, typeName={},value={}, columnType={}, ret={}",
+                                field.name(),
+                                field.defaultValue(),
+                                field.typeName(),
+                                value,
+                                columnType,
+                                ret);
+                        return ret;
                     } catch (Exception e) {
                         logConvertDateError(field, value);
                         throw new RuntimeException("MysqlDebeziumConverter error", e);
@@ -186,6 +195,11 @@ public class MysqlDebeziumTimeConverter
         // indicator,
         // so we can't rely on their getEra() methods.
         // So we have special handling for this case, which sidesteps the toInstant conversion.
+        log.info(
+                "convertToTimestampWithTimezone, columnType={}, timestamp={}, class={}",
+                columnType,
+                timestamp,
+                timestamp.getClass().getName());
         if (timestamp instanceof Timestamp) {
             Timestamp value = (Timestamp) timestamp;
             ZonedDateTime zonedDateTime = value.toInstant().atZone(zoneId);

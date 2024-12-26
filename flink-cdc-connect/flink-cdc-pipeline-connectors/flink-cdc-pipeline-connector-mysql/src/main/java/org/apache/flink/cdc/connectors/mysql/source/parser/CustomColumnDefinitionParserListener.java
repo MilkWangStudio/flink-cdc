@@ -149,6 +149,13 @@ public class CustomColumnDefinitionParserListener extends MySqlParserBaseListene
     private void resolveColumnDataType(MySqlParser.DataTypeContext dataTypeContext) {
         String charsetName = null;
         DataType dataType = dataTypeResolver.resolveDataType(dataTypeContext);
+        LOGGER.info(
+                "resolveColumnDataType dataType={}, jdbcType={}, expression={}, length={}, scale={}",
+                dataType.name(),
+                dataType.jdbcType(),
+                dataType.expression(),
+                dataType.length(),
+                dataType.scale());
 
         if (dataTypeContext instanceof MySqlParser.StringDataTypeContext) {
             // Same as LongVarcharDataTypeContext but with dimension handling

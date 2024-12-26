@@ -250,6 +250,13 @@ public class MySqlValueConverters extends JdbcValueConverters {
 
     @Override
     public ValueConverter converter(Column column, Field fieldDefn) {
+        logger.info(
+                "converter, column={}, typename={}, jdbcType={}, schema={}, name={}",
+                column.name(),
+                column.typeName(),
+                column.jdbcType(),
+                fieldDefn.schema(),
+                fieldDefn.name());
         // Handle a few MySQL-specific types based upon how they are handled by the MySQL binlog
         // client ...
         String typeName = column.typeName().toUpperCase();
@@ -351,13 +358,35 @@ public class MySqlValueConverters extends JdbcValueConverters {
                         "Using UTF-8 charset by default for column without charset: {}", column);
                 return (data) -> convertString(column, fieldDefn, StandardCharsets.UTF_8, data);
             case Types.TIME:
-                if (adaptiveTimeMicrosecondsPrecisionMode) {
+                {
+                    logger.info(
+                            "converter convert time, column={}, typename={}, jdbcType={}, schema={}, name={}, adaptiveTimeMicrosecondsPrecisionMode={}",
+                            column.name(),
+                            column.typeName(),
+                            column.jdbcType(),
+                            fieldDefn.schema(),
+                            fieldDefn.name(),
+                            adaptiveTimeMicrosecondsPrecisionMode);
+                    //                    if (adaptiveTimeMicrosecondsPrecisionMode) {
                     return data -> convertDurationToMicroseconds(column, fieldDefn, data);
+                    //                    }
                 }
             case Types.TIMESTAMP:
-                return ((ValueConverter)
-                                (data -> convertTimestampToLocalDateTime(column, fieldDefn, data)))
-                        .and(super.converter(column, fieldDefn));
+                {
+                    logger.info(
+                            "converter convert timestamp, column={}, typename={}, jdbcType={}, schema={}, name={}",
+                            column.name(),
+                            column.typeName(),
+                            column.jdbcType(),
+                            fieldDefn.schema(),
+                            fieldDefn.name());
+                    return ((ValueConverter)
+                                    (data ->
+                                            convertTimestampToLocalDateTime(
+                                                    column, fieldDefn, data)))
+                            .and(super.converter(column, fieldDefn));
+                }
+
             default:
                 break;
         }
@@ -1017,22 +1046,62 @@ public class MySqlValueConverters extends JdbcValueConverters {
      *     allow nulls
      */
     protected Object convertDurationToMicroseconds(Column column, Field fieldDefn, Object data) {
-        return convertValue(
-                column,
-                fieldDefn,
+        Object value =
+                convertValue(
+                        column,
+                        fieldDefn,
+                        data,
+                        0L,
+                        (r) -> {
+                            try {
+                                LOGGER.info(
+                                        "real convertDurationToMicroseconds-1, data={}, dataType={}",
+                                        data,
+                                        data != null ? data.getClass().getName() : null);
+                                if (data instanceof Duration) {
+                                    long s = ((Duration) data).getSeconds();
+                                    LOGGER.info(
+                                            "real convertDurationToMicroseconds-2, data={}, dataType={}, s={}",
+                                            data,
+                                            data.getClass().getName(),
+                                            s);
+                                    //                                    if (s == 0L) {
+                                    //                                        r.deliver(s);
+                                    //                                    } else {
+                                    String time =
+                                            String.format(
+                                                    "%02d:%02d:%02d",
+                                                    s / 3600, (s % 3600) / 60, (s % 60));
+                                    r.deliver(time);
+                                    //                                    }
+                                }
+                            } catch (IllegalArgumentException e) {
+                            }
+                        });
+        logger.info(
+                "convertDurationToMicroseconds, columnName={}, typeName={}, jdbcType={}, data={},class={}, ret={}, dataClass={}",
+                column.name(),
+                column.typeName(),
+                column.jdbcType(),
                 data,
-                0L,
-                (r) -> {
-                    try {
-                        if (data instanceof Duration) {
-                            r.deliver(((Duration) data).toNanos() / 1_000);
-                        }
-                    } catch (IllegalArgumentException e) {
-                    }
-                });
+                value != null ? value.getClass().getName() : null,
+                value,
+                data.getClass().getName());
+        //        if (value == null && data instanceof String) {
+        //            return data;
+        //        }
+        return value;
     }
 
     protected Object convertTimestampToLocalDateTime(Column column, Field fieldDefn, Object data) {
+        logger.info(
+                "convertTimestampToLocalDateTime, column={}, typename={}, schema={}, name={}, data={}, class={}",
+                column.name(),
+                column.typeName(),
+                fieldDefn.schema(),
+                fieldDefn.name(),
+                data,
+                data == null ? null : data.getClass().getName());
         if (data == null && !fieldDefn.schema().isOptional()) {
             return null;
         }
@@ -1072,6 +1141,13 @@ public class MySqlValueConverters extends JdbcValueConverters {
     }
 
     public static LocalDate stringToLocalDate(String dateString, Column column, Table table) {
+        LOGGER.info(
+                "stringToLocalDate, dateString={}, columnName={}, columnType={}, columnJdbcType={}, table={}",
+                dateString,
+                column.name(),
+                column.typeName(),
+                column.jdbcType(),
+                table.id().table());
         final Matcher matcher = DATE_FIELD_PATTERN.matcher(dateString);
         if (!matcher.matches()) {
             throw new RuntimeException("Unexpected format for DATE column: " + dateString);

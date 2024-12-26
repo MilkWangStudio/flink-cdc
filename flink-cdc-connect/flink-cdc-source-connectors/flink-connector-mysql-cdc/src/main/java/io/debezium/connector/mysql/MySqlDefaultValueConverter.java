@@ -22,7 +22,6 @@ import java.math.RoundingMode;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -52,9 +51,9 @@ public class MySqlDefaultValueConverter implements DefaultValueConverter {
     private static final Pattern EPOCH_EQUIVALENT_DATE =
             Pattern.compile("\\d{4}-\\d{2}-00|\\d{4}-00-\\d{2}|0000-\\d{2}-\\d{2}");
 
-    private static final String EPOCH_TIMESTAMP = "1970-01-01 00:00:00";
+    private static final String EPOCH_TIMESTAMP = "2000-01-01 00:00:00";
 
-    private static final String EPOCH_DATE = "1970-01-01";
+    private static final String EPOCH_DATE = "2000-01-01";
 
     private static final Pattern TIMESTAMP_PATTERN =
             Pattern.compile("([0-9]*-[0-9]*-[0-9]*) ([0-9]*:[0-9]*:[0-9]*(\\.([0-9]*))?)");
@@ -210,7 +209,12 @@ public class MySqlDefaultValueConverter implements DefaultValueConverter {
                 EPOCH_EQUIVALENT_DATE.matcher(value).matches()
                         || EPOCH_EQUIVALENT_TIMESTAMP.matcher(value).matches()
                         || "0".equals(value);
-
+        LOGGER.info(
+                "convertToLocalDate, column={}, columnType={}, value={}, isZero={}",
+                column.name(),
+                column.typeName(),
+                value,
+                zero);
         if (zero && column.isOptional()) {
             return null;
         }
@@ -246,6 +250,12 @@ public class MySqlDefaultValueConverter implements DefaultValueConverter {
     private Object convertToLocalDateTime(Column column, String value) {
         final boolean matches =
                 EPOCH_EQUIVALENT_TIMESTAMP.matcher(value).matches() || "0".equals(value);
+        LOGGER.info(
+                "convertToLocalDateTime, column={}, columnType={}, value={}, isZero={}",
+                column.name(),
+                column.typeName(),
+                value,
+                matches);
         if (matches) {
             if (column.isOptional()) {
                 return null;
@@ -284,12 +294,18 @@ public class MySqlDefaultValueConverter implements DefaultValueConverter {
                 EPOCH_EQUIVALENT_TIMESTAMP.matcher(value).matches()
                         || "0".equals(value)
                         || EPOCH_TIMESTAMP.equals(value);
+        LOGGER.info(
+                "convertToTimestamp, column={}, columnType={}, value={}, isZero={}",
+                column.name(),
+                column.typeName(),
+                value,
+                matches);
         if (matches) {
             if (column.isOptional()) {
                 return null;
             }
 
-            return Timestamp.from(Instant.EPOCH);
+            return Timestamp.valueOf(EPOCH_TIMESTAMP);
         }
         value = cleanTimestamp(value);
         return Timestamp.valueOf(value).toInstant().atZone(ZoneId.systemDefault());
@@ -307,6 +323,13 @@ public class MySqlDefaultValueConverter implements DefaultValueConverter {
         if (matcher.matches()) {
             value = matcher.group(2);
         }
+        LOGGER.info(
+                "convertToDuration, column={}, columnType={}, value={}, matcher={}",
+                column.name(),
+                column.typeName(),
+                value,
+                matcher.matches());
+        //        return value;
         return MySqlValueConverters.stringToDuration(value);
     }
 

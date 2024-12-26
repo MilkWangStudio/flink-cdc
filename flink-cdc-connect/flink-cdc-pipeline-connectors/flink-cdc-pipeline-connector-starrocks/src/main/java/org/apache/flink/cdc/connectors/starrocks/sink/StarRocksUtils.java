@@ -18,6 +18,8 @@
 package org.apache.flink.cdc.connectors.starrocks.sink;
 
 import org.apache.flink.cdc.common.data.RecordData;
+import org.apache.flink.cdc.common.data.StringData;
+import org.apache.flink.cdc.common.data.TimestampData;
 import org.apache.flink.cdc.common.event.TableId;
 import org.apache.flink.cdc.common.schema.Column;
 import org.apache.flink.cdc.common.schema.Schema;
@@ -39,8 +41,12 @@ import org.apache.flink.cdc.common.types.VarCharType;
 
 import com.starrocks.connector.flink.catalog.StarRocksColumn;
 import com.starrocks.connector.flink.catalog.StarRocksTable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -52,6 +58,7 @@ import static org.apache.flink.cdc.common.types.DataTypeChecks.getScale;
 
 /** Utilities for conversion from source table to StarRocks table. */
 public class StarRocksUtils {
+    private static final Logger LOGGER = LoggerFactory.getLogger(StarRocksUtils.class);
 
     /** Convert a source table to {@link StarRocksTable}. */
     public static StarRocksTable toStarRocksTable(
@@ -130,7 +137,7 @@ public class StarRocksUtils {
      * @param fieldType the element type of the RecordData
      * @param fieldPos the element position of the RecordData
      * @param zoneId the time zone used when converting from <code>TIMESTAMP WITH LOCAL TIME ZONE
-     *     </code>
+     *                  </code>
      */
     public static RecordData.FieldGetter createFieldGetter(
             DataType fieldType, int fieldPos, ZoneId zoneId) {
@@ -168,31 +175,72 @@ public class StarRocksUtils {
                 break;
             case CHAR:
             case VARCHAR:
-                fieldGetter = record -> record.getString(fieldPos).toString();
+                fieldGetter =
+                        record -> {
+                            LOGGER.info("StarRocksSink VARCHAR-1, pos={}", fieldPos);
+                            String ret = record.getString(fieldPos).toString();
+                            LOGGER.info(
+                                    "StarRocksSink VARCHAR-2, fieldPos={}, ret={}", fieldPos, ret);
+                            return ret;
+                        };
                 break;
             case DATE:
                 fieldGetter =
-                        record ->
-                                LocalDate.ofEpochDay(record.getInt(fieldPos))
-                                        .format(DATE_FORMATTER);
+                        record -> {
+                            StringData str = record.getString(fieldPos);
+                            int intDay = record.getInt(fieldPos);
+                            String ret = LocalDate.ofEpochDay(intDay).format(DATE_FORMATTER);
+                            LOGGER.info("StarRocksSink DATE, intDay={}, ret={}", intDay, ret);
+                            return ret;
+                        };
                 break;
             case TIMESTAMP_WITHOUT_TIME_ZONE:
                 fieldGetter =
-                        record ->
-                                record.getTimestamp(fieldPos, getPrecision(fieldType))
-                                        .toLocalDateTime()
-                                        .format(DATETIME_FORMATTER);
+                        (record -> {
+                            StringData str = record.getString(fieldPos);
+                            TimestampData timestamp =
+                                    record.getTimestamp(fieldPos, getPrecision(fieldType));
+                            String timestampStr = timestamp.toString();
+                            LocalDateTime localDateTime = timestamp.toLocalDateTime();
+                            String ret = localDateTime.format(DATETIME_FORMATTER);
+                            LOGGER.info(
+                                    "StarRocksSink TIMESTAMP_WITHOUT_TIME_ZONE,str={}, dataType={}, instant={}, timestampStr={}, timeZone={}, ret={}",
+                                    str.toString(),
+                                    fieldType.getTypeRoot(),
+                                    localDateTime.getSecond(),
+                                    timestampStr,
+                                    zoneId.getId(),
+                                    ret);
+                            return ret;
+                        });
                 break;
             case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
                 fieldGetter =
-                        record ->
-                                ZonedDateTime.ofInstant(
-                                                record.getLocalZonedTimestampData(
-                                                                fieldPos, getPrecision(fieldType))
-                                                        .toInstant(),
-                                                zoneId)
-                                        .toLocalDateTime()
-                                        .format(DATETIME_FORMATTER);
+                        record -> {
+                            StringData str = record.getString(fieldPos);
+                            Instant instant =
+                                    record.getLocalZonedTimestampData(
+                                                    fieldPos, getPrecision(fieldType))
+                                            .toInstant();
+                            // 修复timestamp=0自动转1970-01-01 00:00:00问题,ttp默认的zero是2000-01-01 00:00:00
+                            if (instant.getEpochSecond() == 0) {
+                                ZonedDateTime zonedDateTime =
+                                        ZonedDateTime.of(2000, 1, 1, 0, 0, 0, 0, zoneId);
+                                instant = zonedDateTime.toInstant();
+                            }
+                            String ret =
+                                    ZonedDateTime.ofInstant(instant, zoneId)
+                                            .toLocalDateTime()
+                                            .format(DATETIME_FORMATTER);
+                            LOGGER.info(
+                                    "StarRocksSink TIMESTAMP_WITH_LOCAL_TIME_ZONE,str={}, dataType={}, instant={}, timeZone={}, ret={}",
+                                    str.toString(),
+                                    fieldType.getTypeRoot(),
+                                    instant.getEpochSecond(),
+                                    zoneId.getId(),
+                                    ret);
+                            return ret;
+                        };
                 break;
             default:
                 throw new UnsupportedOperationException(

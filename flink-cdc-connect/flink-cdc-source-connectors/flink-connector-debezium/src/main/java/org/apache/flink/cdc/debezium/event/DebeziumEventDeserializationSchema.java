@@ -298,6 +298,9 @@ public abstract class DebeziumEventDeserializationSchema extends SourceRecordEve
         } else if (dbzObj instanceof Integer) {
             return dbzObj;
         }
+        if (dbzObj instanceof String) {
+            return dbzObj;
+        }
         // get number of milliseconds of the day
         return TemporalConversions.toLocalTime(dbzObj).toSecondOfDay() * 1000;
     }

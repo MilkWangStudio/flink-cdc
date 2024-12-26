@@ -20,6 +20,9 @@ package org.apache.flink.cdc.common.data;
 import org.apache.flink.cdc.common.annotation.PublicEvolving;
 import org.apache.flink.cdc.common.types.DataType;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javax.annotation.Nullable;
 
 import java.io.Serializable;
@@ -80,6 +83,7 @@ import static org.apache.flink.cdc.common.types.DataTypeChecks.getScale;
  */
 @PublicEvolving
 public interface RecordData {
+    Logger LOG = LoggerFactory.getLogger(RecordData.class);
 
     /** Returns the number of fields in this record. */
     int getArity();
@@ -176,7 +180,16 @@ public interface RecordData {
         switch (fieldType.getTypeRoot()) {
             case CHAR:
             case VARCHAR:
-                fieldGetter = record -> record.getString(fieldPos);
+            case TIME_WITHOUT_TIME_ZONE:
+                fieldGetter =
+                        record -> {
+                            StringData value = record.getString(fieldPos);
+                            LOG.info(
+                                    "RecordData createFieldGetter, pos={}, value={}",
+                                    fieldPos,
+                                    value.toString());
+                            return value;
+                        };
                 break;
             case BOOLEAN:
                 fieldGetter = record -> record.getBoolean(fieldPos);
@@ -198,7 +211,6 @@ public interface RecordData {
                 break;
             case INTEGER:
             case DATE:
-            case TIME_WITHOUT_TIME_ZONE:
                 fieldGetter = record -> record.getInt(fieldPos);
                 break;
             case BIGINT:

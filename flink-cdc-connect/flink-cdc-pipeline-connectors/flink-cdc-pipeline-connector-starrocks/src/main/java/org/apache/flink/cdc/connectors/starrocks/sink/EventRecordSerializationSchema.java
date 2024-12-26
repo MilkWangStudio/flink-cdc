@@ -26,6 +26,7 @@ import org.apache.flink.cdc.common.event.SchemaChangeEvent;
 import org.apache.flink.cdc.common.event.TableId;
 import org.apache.flink.cdc.common.schema.Column;
 import org.apache.flink.cdc.common.schema.Schema;
+import org.apache.flink.cdc.common.types.DataType;
 import org.apache.flink.cdc.common.utils.Preconditions;
 import org.apache.flink.cdc.common.utils.SchemaUtils;
 
@@ -34,6 +35,8 @@ import com.starrocks.connector.flink.table.data.StarRocksRowData;
 import com.starrocks.connector.flink.table.sink.v2.RecordSerializationSchema;
 import com.starrocks.connector.flink.table.sink.v2.StarRocksSinkContext;
 import com.starrocks.connector.flink.tools.JsonWrapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.ZoneId;
 import java.util.HashMap;
@@ -42,6 +45,8 @@ import java.util.Map;
 
 /** Serializer for the input {@link Event}. It will serialize a row to a json string. */
 public class EventRecordSerializationSchema implements RecordSerializationSchema<Event> {
+    private static final Logger LOGGER =
+            LoggerFactory.getLogger(EventRecordSerializationSchema.class);
 
     private static final long serialVersionUID = 1L;
 
@@ -96,6 +101,14 @@ public class EventRecordSerializationSchema implements RecordSerializationSchema
         tableInfo.schema = newSchema;
         tableInfo.fieldGetters = new RecordData.FieldGetter[newSchema.getColumnCount()];
         for (int i = 0; i < newSchema.getColumnCount(); i++) {
+            LOGGER.info(
+                    "starrocks createFieldGetter,columnName={}, dataType={}, dataTypeRoot={}, fieldPos={}, zoneId={}, totalString={}",
+                    newSchema.getColumns().get(i).getName(),
+                    newSchema.getColumns().get(i).getType().toString(),
+                    newSchema.getColumns().get(i).getType().getTypeRoot().toString(),
+                    i,
+                    zoneId.getId(),
+                    reusableRowData.getRow());
             tableInfo.fieldGetters[i] =
                     StarRocksUtils.createFieldGetter(
                             newSchema.getColumns().get(i).getType(), i, zoneId);
@@ -123,6 +136,7 @@ public class EventRecordSerializationSchema implements RecordSerializationSchema
                         "Don't support operation type " + event.op());
         }
         reusableRowData.setRow(value);
+        LOGGER.info("starRocks sink data, {}", value);
         return reusableRowData;
     }
 
@@ -130,11 +144,34 @@ public class EventRecordSerializationSchema implements RecordSerializationSchema
         List<Column> columns = tableInfo.schema.getColumns();
         Preconditions.checkArgument(columns.size() == record.getArity());
         Map<String, Object> rowMap = new HashMap<>(record.getArity() + 1);
+
         for (int i = 0; i < record.getArity(); i++) {
-            rowMap.put(columns.get(i).getName(), tableInfo.fieldGetters[i].getFieldOrNull(record));
+            Column column = columns.get(i);
+            DataType type = column.getType();
+            LOGGER.info(
+                    "serializeRecord-1, key={}, dataType={}",
+                    column.getName(),
+                    type.getTypeRoot().name());
+            Object value = tableInfo.fieldGetters[i].getFieldOrNull(record);
+            rowMap.put(columns.get(i).getName(), value);
+            LOGGER.info(
+                    "serializeRecord-2, key={}, dataType={}, value={}",
+                    columns.get(i).getName(),
+                    type.getTypeRoot().name(),
+                    value);
         }
         rowMap.put("__op", isDelete ? 1 : 0);
-        return jsonWrapper.toJSONString(rowMap);
+        rowMap.forEach(
+                (key, value) -> {
+                    LOGGER.info(
+                            "serializeRecord-3, key={}, value={}, class={}",
+                            key,
+                            value,
+                            value != null ? value.getClass().getName() : null);
+                });
+        String json = jsonWrapper.toJSONString(rowMap);
+        LOGGER.info("serializeRecord-4, json={}", json);
+        return json;
     }
 
     @Override

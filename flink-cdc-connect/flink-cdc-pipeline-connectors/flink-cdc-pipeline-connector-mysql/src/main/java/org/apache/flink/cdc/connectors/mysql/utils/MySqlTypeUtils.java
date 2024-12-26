@@ -138,7 +138,7 @@ public class MySqlTypeUtils {
                 // user should not use tinyint(1) to store number although jdbc url parameter
                 // tinyInt1isBit=false can help change the return value, it's not a general way
                 // btw: mybatis and mysql-connector-java map tinyint(1) to boolean by default
-                return column.length() == 1 ? DataTypes.BOOLEAN() : DataTypes.TINYINT();
+                return DataTypes.TINYINT();
             case TINYINT_UNSIGNED:
             case TINYINT_UNSIGNED_ZEROFILL:
             case SMALLINT:
@@ -194,7 +194,7 @@ public class MySqlTypeUtils {
                         ? DataTypes.DECIMAL(column.length(), column.scale().orElse(0))
                         : DataTypes.STRING();
             case TIME:
-                return column.length() >= 0 ? DataTypes.TIME(column.length()) : DataTypes.TIME();
+                return DataTypes.VARCHAR(16);
             case DATE:
                 return DataTypes.DATE();
             case DATETIME:
@@ -247,4 +247,27 @@ public class MySqlTypeUtils {
     }
 
     private MySqlTypeUtils() {}
+
+    public static String fromDbzColumnDefaultValue(Column column) {
+        String typeName = column.typeName();
+        String defaultValue = column.defaultValueExpression().orElse(null);
+        switch (typeName) {
+            case TIMESTAMP:
+            case DATETIME:
+                {
+                    if ("0000-00-00 00:00:00".equals(defaultValue)) {
+                        return "2000-01-01 00:00:00";
+                    }
+                    break;
+                }
+            case DATE:
+                {
+                    if ("0000-00-00".equals(defaultValue)) {
+                        return "2000-01-01";
+                    }
+                    break;
+                }
+        }
+        return defaultValue;
+    }
 }

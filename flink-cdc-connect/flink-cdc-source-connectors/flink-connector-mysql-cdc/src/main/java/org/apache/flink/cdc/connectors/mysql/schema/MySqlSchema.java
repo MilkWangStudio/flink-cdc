@@ -31,6 +31,8 @@ import io.debezium.relational.TableId;
 import io.debezium.relational.history.TableChanges.TableChange;
 import io.debezium.schema.SchemaChangeEvent;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.time.Instant;
@@ -41,6 +43,8 @@ import java.util.Map;
 
 /** A component used to get schema by table path. */
 public class MySqlSchema implements AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(MySqlSchema.class);
+
     private static final String SHOW_CREATE_TABLE = "SHOW CREATE TABLE ";
     private static final String DESC_TABLE = "DESC ";
 
@@ -144,6 +148,7 @@ public class MySqlSchema implements AutoCloseable {
                     descTable,
                     rs -> {
                         while (rs.next()) {
+
                             MySqlFieldDefinition meta = new MySqlFieldDefinition();
                             meta.setColumnName(rs.getString("Field"));
                             meta.setColumnType(rs.getString("Type"));
