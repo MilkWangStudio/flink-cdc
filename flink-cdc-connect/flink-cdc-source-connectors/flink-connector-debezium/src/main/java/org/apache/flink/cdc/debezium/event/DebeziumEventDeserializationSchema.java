@@ -298,6 +298,9 @@ public abstract class DebeziumEventDeserializationSchema extends SourceRecordEve
         } else if (dbzObj instanceof Integer) {
             return dbzObj;
         }
+        if (dbzObj instanceof String) {
+            return dbzObj;
+        }
         // get number of milliseconds of the day
         return TemporalConversions.toLocalTime(dbzObj).toSecondOfDay() * 1000;
     }
@@ -325,6 +328,7 @@ public abstract class DebeziumEventDeserializationSchema extends SourceRecordEve
     protected Object convertToLocalTimeZoneTimestamp(Object dbzObj, Schema schema) {
         if (dbzObj instanceof String) {
             String str = (String) dbzObj;
+            LOG.trace("parent-----convertToInstant,{}", str);
             // TIMESTAMP_LTZ type is encoded in string type
             Instant instant = Instant.parse(str);
             return LocalZonedTimestampData.fromInstant(instant);

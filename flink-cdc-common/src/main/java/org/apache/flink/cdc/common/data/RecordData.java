@@ -176,6 +176,7 @@ public interface RecordData {
         switch (fieldType.getTypeRoot()) {
             case CHAR:
             case VARCHAR:
+            case TIME_WITHOUT_TIME_ZONE:
                 fieldGetter = record -> record.getString(fieldPos);
                 break;
             case BOOLEAN:
@@ -198,7 +199,6 @@ public interface RecordData {
                 break;
             case INTEGER:
             case DATE:
-            case TIME_WITHOUT_TIME_ZONE:
                 fieldGetter = record -> record.getInt(fieldPos);
                 break;
             case BIGINT:

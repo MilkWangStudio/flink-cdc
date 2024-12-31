@@ -27,6 +27,7 @@ import org.apache.flink.cdc.common.data.RecordData;
 import org.apache.flink.cdc.common.data.StringData;
 import org.apache.flink.cdc.common.data.TimestampData;
 import org.apache.flink.cdc.common.data.ZonedTimestampData;
+import org.apache.flink.cdc.common.data.binary.BinaryStringData;
 import org.apache.flink.cdc.common.types.DataType;
 import org.apache.flink.cdc.common.types.DecimalType;
 import org.apache.flink.cdc.common.types.LocalZonedTimestampType;
@@ -97,7 +98,6 @@ public interface BinaryWriter {
                 break;
             case INTEGER:
             case DATE:
-            case TIME_WITHOUT_TIME_ZONE:
                 writer.writeInt(pos, (int) o);
                 break;
             case BIGINT:
@@ -124,8 +124,15 @@ public interface BinaryWriter {
                 break;
             case CHAR:
             case VARCHAR:
-                writer.writeString(pos, (StringData) o);
-                break;
+            case TIME_WITHOUT_TIME_ZONE:
+                {
+                    if (o instanceof String) {
+                        writer.writeString(pos, new BinaryStringData((String) o));
+                    } else {
+                        writer.writeString(pos, (StringData) o);
+                    }
+                    break;
+                }
             case DECIMAL:
                 DecimalType decimalType = (DecimalType) type;
                 writer.writeDecimal(pos, (DecimalData) o, decimalType.getPrecision());

@@ -22,7 +22,6 @@ import java.math.RoundingMode;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -289,7 +288,7 @@ public class MySqlDefaultValueConverter implements DefaultValueConverter {
                 return null;
             }
 
-            return Timestamp.from(Instant.EPOCH);
+            return Timestamp.valueOf(EPOCH_TIMESTAMP);
         }
         value = cleanTimestamp(value);
         return Timestamp.valueOf(value).toInstant().atZone(ZoneId.systemDefault());

@@ -26,6 +26,7 @@ import org.apache.flink.cdc.connectors.mysql.schema.MySqlFieldDefinition;
 import org.apache.flink.cdc.connectors.mysql.schema.MySqlTableDefinition;
 import org.apache.flink.cdc.connectors.mysql.source.config.MySqlSourceConfig;
 import org.apache.flink.cdc.connectors.mysql.source.metrics.MySqlSourceReaderMetrics;
+import org.apache.flink.cdc.connectors.mysql.source.parser.CustomMySqlAntlrDdlParser;
 import org.apache.flink.cdc.connectors.mysql.source.split.MySqlSplitState;
 import org.apache.flink.cdc.connectors.mysql.table.StartupMode;
 import org.apache.flink.cdc.connectors.mysql.utils.MySqlSchemaUtils;
@@ -205,11 +206,8 @@ public class MySqlPipelineRecordEmitter extends MySqlRecordEmitter<Event> {
             if (!column.isOptional()) {
                 dataType = dataType.notNull();
             }
-            tableBuilder.physicalColumn(
-                    colName,
-                    dataType,
-                    column.comment(),
-                    column.defaultValueExpression().orElse(null));
+            String defaultValue = MySqlTypeUtils.fromDbzColumnDefaultValue(column);
+            tableBuilder.physicalColumn(colName, dataType, column.comment(), defaultValue);
         }
 
         List<String> primaryKey = table.primaryKeyColumnNames();
@@ -229,7 +227,7 @@ public class MySqlPipelineRecordEmitter extends MySqlRecordEmitter<Event> {
 
     private synchronized MySqlAntlrDdlParser getParser() {
         if (mySqlAntlrDdlParser == null) {
-            mySqlAntlrDdlParser = new MySqlAntlrDdlParser();
+            mySqlAntlrDdlParser = new CustomMySqlAntlrDdlParser();
         }
         return mySqlAntlrDdlParser;
     }

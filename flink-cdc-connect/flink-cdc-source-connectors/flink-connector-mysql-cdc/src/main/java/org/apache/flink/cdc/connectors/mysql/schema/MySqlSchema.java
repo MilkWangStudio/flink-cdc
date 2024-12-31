@@ -144,6 +144,7 @@ public class MySqlSchema implements AutoCloseable {
                     descTable,
                     rs -> {
                         while (rs.next()) {
+
                             MySqlFieldDefinition meta = new MySqlFieldDefinition();
                             meta.setColumnName(rs.getString("Field"));
                             meta.setColumnType(rs.getString("Type"));

@@ -74,7 +74,7 @@ public class DefaultValueParserListener extends MySqlParserBaseListener {
                         ctx.currentTimestamp(0);
                 if (currentTimestamp.CURRENT_TIMESTAMP() != null
                         || currentTimestamp.NOW() != null) {
-                    columnEditor.defaultValueExpression("1970-01-01 00:00:00");
+                    columnEditor.defaultValueExpression("2000-01-01 00:00:00");
                 } else {
                     columnEditor.defaultValueExpression(currentTimestamp.getText());
                 }

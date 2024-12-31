@@ -25,6 +25,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.concurrent.TimeUnit;
 
 /** Temporal conversion constants. */
@@ -92,6 +93,10 @@ public final class TemporalConversions {
         if (obj instanceof java.sql.Date) {
             throw new IllegalArgumentException(
                     "Unable to convert to LocalDate from a java.sql.Date value '" + obj + "'");
+        }
+        if (obj instanceof java.lang.String) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
+            return LocalTime.parse((String) obj, formatter);
         }
         if (obj instanceof java.sql.Time) {
             java.sql.Time time = (java.sql.Time) obj;

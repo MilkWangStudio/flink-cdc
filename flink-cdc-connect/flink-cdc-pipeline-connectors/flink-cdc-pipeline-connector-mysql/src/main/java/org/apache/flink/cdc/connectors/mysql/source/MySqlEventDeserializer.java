@@ -18,9 +18,11 @@
 package org.apache.flink.cdc.connectors.mysql.source;
 
 import org.apache.flink.cdc.common.annotation.Internal;
+import org.apache.flink.cdc.common.data.LocalZonedTimestampData;
 import org.apache.flink.cdc.common.data.binary.BinaryStringData;
 import org.apache.flink.cdc.common.event.SchemaChangeEvent;
 import org.apache.flink.cdc.common.event.TableId;
+import org.apache.flink.cdc.common.utils.StringUtils;
 import org.apache.flink.cdc.connectors.mysql.source.parser.CustomMySqlAntlrDdlParser;
 import org.apache.flink.cdc.debezium.event.DebeziumEventDeserializationSchema;
 import org.apache.flink.cdc.debezium.table.DebeziumChangelogMode;
@@ -36,9 +38,16 @@ import io.debezium.relational.history.HistoryRecord;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -50,7 +59,7 @@ import static org.apache.flink.cdc.connectors.mysql.source.utils.RecordUtils.get
 /** Event deserializer for {@link MySqlDataSource}. */
 @Internal
 public class MySqlEventDeserializer extends DebeziumEventDeserializationSchema {
-
+    private static final Logger LOG = LoggerFactory.getLogger(MySqlEventDeserializer.class);
     private static final long serialVersionUID = 1L;
 
     public static final String SCHEMA_CHANGE_EVENT_KEY_NAME =
@@ -60,13 +69,22 @@ public class MySqlEventDeserializer extends DebeziumEventDeserializationSchema {
 
     private final boolean includeSchemaChanges;
 
+    private final String serverTimeZone;
+
     private transient Tables tables;
     private transient CustomMySqlAntlrDdlParser customParser;
 
     public MySqlEventDeserializer(
-            DebeziumChangelogMode changelogMode, boolean includeSchemaChanges) {
+            DebeziumChangelogMode changelogMode,
+            boolean includeSchemaChanges,
+            String serverTimeZone) {
         super(new MySqlSchemaDataTypeInference(), changelogMode);
         this.includeSchemaChanges = includeSchemaChanges;
+        if (StringUtils.isNullOrWhitespaceOnly(serverTimeZone)) {
+            this.serverTimeZone = ZoneId.systemDefault().getId();
+        } else {
+            this.serverTimeZone = serverTimeZone;
+        }
     }
 
     @Override
@@ -119,6 +137,35 @@ public class MySqlEventDeserializer extends DebeziumEventDeserializationSchema {
     @Override
     protected Map<String, String> getMetadata(SourceRecord record) {
         return Collections.emptyMap();
+    }
+
+    private Instant convertToInstant(String str) {
+        LOG.trace("child-----convertToInstant,{}, timezone={}", str, this.serverTimeZone);
+        if (str.endsWith("+08:00") || str.endsWith("Z")) {
+            // +8时区
+            DateTimeFormatter formatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
+            OffsetDateTime offsetDateTime = OffsetDateTime.parse(str, formatter);
+            return offsetDateTime.toInstant();
+        } else {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            LocalDateTime localDateTime = LocalDateTime.parse(str, formatter);
+            return localDateTime.atZone(ZoneId.of(this.serverTimeZone)).toInstant();
+        }
+    }
+
+    @Override
+    protected Object convertToLocalTimeZoneTimestamp(Object dbzObj, Schema schema) {
+        if (dbzObj instanceof String) {
+            String str = (String) dbzObj;
+            // TIMESTAMP_LTZ type is encoded in string type
+            Instant instant = convertToInstant(str);
+            return LocalZonedTimestampData.fromInstant(instant);
+        }
+        throw new IllegalArgumentException(
+                "Unable to convert to TIMESTAMP_LTZ from unexpected value '"
+                        + dbzObj
+                        + "' of type "
+                        + dbzObj.getClass().getName());
     }
 
     @Override

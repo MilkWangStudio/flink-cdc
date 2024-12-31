@@ -347,13 +347,11 @@ public class MySqlValueConverters extends JdbcValueConverters {
                     logger.debug("Using {} charset by default for column: {}", charset, column);
                     return (data) -> convertString(column, fieldDefn, charset, data);
                 }
-                logger.warn(
+                logger.debug(
                         "Using UTF-8 charset by default for column without charset: {}", column);
                 return (data) -> convertString(column, fieldDefn, StandardCharsets.UTF_8, data);
             case Types.TIME:
-                if (adaptiveTimeMicrosecondsPrecisionMode) {
-                    return data -> convertDurationToMicroseconds(column, fieldDefn, data);
-                }
+                return data -> convertDurationToMicroseconds(column, fieldDefn, data);
             case Types.TIMESTAMP:
                 return ((ValueConverter)
                                 (data -> convertTimestampToLocalDateTime(column, fieldDefn, data)))
@@ -388,7 +386,7 @@ public class MySqlValueConverters extends JdbcValueConverters {
                     MySqlConnection.getJavaEncodingForMysqlCharSet(mySqlCharsetName.toLowerCase());
         }
         if (encoding == null) {
-            logger.warn(
+            logger.debug(
                     "Column uses MySQL character set '{}', which has no mapping to a Java character set",
                     mySqlCharsetName);
         } else {
@@ -1025,7 +1023,11 @@ public class MySqlValueConverters extends JdbcValueConverters {
                 (r) -> {
                     try {
                         if (data instanceof Duration) {
-                            r.deliver(((Duration) data).toNanos() / 1_000);
+                            long s = ((Duration) data).getSeconds();
+                            String time =
+                                    String.format(
+                                            "%02d:%02d:%02d", s / 3600, (s % 3600) / 60, (s % 60));
+                            r.deliver(time);
                         }
                     } catch (IllegalArgumentException e) {
                     }
@@ -1082,7 +1084,7 @@ public class MySqlValueConverters extends JdbcValueConverters {
         final int day = Integer.parseInt(matcher.group(3));
 
         if (year == 0 || month == 0 || day == 0) {
-            LOGGER.warn(
+            LOGGER.debug(
                     "Invalid value '{}' stored in column '{}' of table '{}' converted to empty value",
                     dateString,
                     column.name(),
@@ -1104,7 +1106,7 @@ public class MySqlValueConverters extends JdbcValueConverters {
         final int day = Integer.parseInt(matcher.group(3));
 
         if (year == 0 || month == 0 || day == 0) {
-            LOGGER.warn(
+            LOGGER.debug(
                     "Invalid value '{}' stored in column '{}' of table '{}' converted to empty value",
                     timestampString,
                     column.name(),

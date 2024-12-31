@@ -18,6 +18,7 @@
 package org.apache.flink.cdc.connectors.starrocks.sink;
 
 import org.apache.flink.cdc.common.data.RecordData;
+import org.apache.flink.cdc.common.data.TimestampData;
 import org.apache.flink.cdc.common.event.TableId;
 import org.apache.flink.cdc.common.schema.Column;
 import org.apache.flink.cdc.common.schema.Schema;
@@ -40,7 +41,9 @@ import org.apache.flink.cdc.common.types.VarCharType;
 import com.starrocks.connector.flink.catalog.StarRocksColumn;
 import com.starrocks.connector.flink.catalog.StarRocksTable;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -130,7 +133,7 @@ public class StarRocksUtils {
      * @param fieldType the element type of the RecordData
      * @param fieldPos the element position of the RecordData
      * @param zoneId the time zone used when converting from <code>TIMESTAMP WITH LOCAL TIME ZONE
-     *     </code>
+     *                  </code>
      */
     public static RecordData.FieldGetter createFieldGetter(
             DataType fieldType, int fieldPos, ZoneId zoneId) {
@@ -178,21 +181,30 @@ public class StarRocksUtils {
                 break;
             case TIMESTAMP_WITHOUT_TIME_ZONE:
                 fieldGetter =
-                        record ->
-                                record.getTimestamp(fieldPos, getPrecision(fieldType))
-                                        .toLocalDateTime()
-                                        .format(DATETIME_FORMATTER);
+                        (record -> {
+                            TimestampData timestamp =
+                                    record.getTimestamp(fieldPos, getPrecision(fieldType));
+                            LocalDateTime localDateTime = timestamp.toLocalDateTime();
+                            return localDateTime.format(DATETIME_FORMATTER);
+                        });
                 break;
             case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
                 fieldGetter =
-                        record ->
-                                ZonedDateTime.ofInstant(
-                                                record.getLocalZonedTimestampData(
-                                                                fieldPos, getPrecision(fieldType))
-                                                        .toInstant(),
-                                                zoneId)
-                                        .toLocalDateTime()
-                                        .format(DATETIME_FORMATTER);
+                        record -> {
+                            Instant instant =
+                                    record.getLocalZonedTimestampData(
+                                                    fieldPos, getPrecision(fieldType))
+                                            .toInstant();
+                            // 修复timestamp=0自动转1970-01-01 00:00:00问题,ttp默认的zero是2000-01-01 00:00:00
+                            if (instant.getEpochSecond() == 0) {
+                                ZonedDateTime zonedDateTime =
+                                        ZonedDateTime.of(2000, 1, 1, 0, 0, 0, 0, zoneId);
+                                instant = zonedDateTime.toInstant();
+                            }
+                            return ZonedDateTime.ofInstant(instant, zoneId)
+                                    .toLocalDateTime()
+                                    .format(DATETIME_FORMATTER);
+                        };
                 break;
             default:
                 throw new UnsupportedOperationException(
